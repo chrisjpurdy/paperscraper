@@ -4,7 +4,14 @@
 #import <vector>
 #import <string>
 #import <thread>
+#import <mutex>
 #import <iostream>
+
+#include <curlpp/cURLpp.hpp>
+#include <curlpp/Easy.hpp>
+#include <curlpp/Options.hpp>
+
+using namespace curlpp::options;
 
 /**
  * Creating an instance of this spawns a thread to search europepmc for paper titles
@@ -17,30 +24,44 @@
 class	PaperFinder {
 	
 	static int currentSearches;
+	static bool initialised;
 	
+private:
 	std::string searchTerm;
+	std::string cursorMark;
 	std::vector<std::string> filterTerms;
-	
+
 	std::thread searchThread;
-	
+	std::mutex progressMutex;
+	std::mutex titlesMutex;
+			
 	std::vector<std::string> titles;
 	int fetchedTitles;
 	
+	void initialise();
+	
 public:
 	
-	PaperFinder(std::string _searchTerm, std::string commaSeparatedFilterTerms) : searchTerm(_searchTerm) {
-		// splits the commaSeparatedFilterTerms into individual words
-		int lastSplit = 0;
-		for (int i=0; i<commaSeparatedFilterTerms.length(); i++) {
-			if (commaSeparatedFilterTerms[i] == ',') {
-				filterTerms.push_back(commaSeparatedFilterTerms.substr(lastSplit, i - lastSplit));
-				lastSplit = i+1;
-			}
-		}
-		filterTerms.push_back(commaSeparatedFilterTerms.substr(lastSplit, commaSeparatedFilterTerms.length() - lastSplit));
-	}
+	PaperFinder(std::string _searchTerm, std::string commaSeparatedFilterTerms, std::string _cursorMark);
 	
-	//void runSearch();
+	~PaperFinder();
+	
+	void join();
+	
+	/**
+	 * Runs the search for the given term with the filter words
+	 */
+	void runSearch();
+	
+	/**
+	 * Thread safe access to progress variable (how many titles can be read)
+	 */
+	int queryProgress();
+	
+	/**
+ 	 * Thread safe access to the title at a given index
+ 	 */
+	std::string getTitle(int index);
 	
 };
 

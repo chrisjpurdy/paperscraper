@@ -26,8 +26,8 @@ def get_ids_from_euro_pmc(query,cursor_mark):
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
     res_url = url.request.urlopen(
-            "https://www.ebi.ac.uk/europepmc/webservices/rest/search?query="+query+"&resultType=lite&cursorMark="+cursor_mark+"&pageSize=1000&format=xml",context=ctx
-            )
+    		"https://www.ebi.ac.uk/europepmc/webservices/rest/search?query="+query+"&resultType=lite&cursorMark="+cursor_mark+"&pageSize=1000&format=xml",context=ctx
+    )
     res = res_url.read()
     res_url.close()
     res = xml.parse(res)
@@ -46,7 +46,7 @@ def get_ids_from_euro_pmc(query,cursor_mark):
         counter += 1
         if len(res_dict) == 1000:
             get_ids_from_euro_pmc(query,next_cursor_mark)
-    
+    	  
         return titles
     except:
         print("Can't read ID! / Cursor Mark")
