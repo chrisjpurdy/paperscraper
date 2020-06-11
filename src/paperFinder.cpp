@@ -3,10 +3,17 @@
 int PaperFinder::currentSearches = 0;
 bool PaperFinder::initialised = false;
 
+size_t PaperFinder::responseCallback(void *contents, size_t size, size_t nmemb, void *userp) {
+	((std::string*)userp)->append((char*)contents, size * nmemb);
+	return size * nmemb;
+}
+
 void PaperFinder::runSearch() {
-	curlpp::Cleanup myCleanup;
 	
+	curlpp::Cleanup myCleanup;
 	cURLpp::Easy request;
+	CURLcode res;
+	std::string readBuffer;
 	
 	/* set up url with query */
 	std::string escapedQuery("\"");
@@ -21,15 +28,38 @@ void PaperFinder::runSearch() {
 	escapedQuery += curl_easy_escape(request.getHandle(), filterTerms[i].c_str(), 0);
 	escapedQuery += "*)";
 	
-	std::string url("https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=");
-	url += escapedQuery;
-	url += "&resultType=lite&cursorMark=";
-	url += cursorMark;
-	url += "&pageSize=1000&format=xml";
+	curl_easy_setopt(request.getHandle(), CURLOPT_WRITEFUNCTION, PaperFinder::responseCallback);
+	curl_easy_setopt(request.getHandle(), CURLOPT_WRITEDATA, &readBuffer);
 	
-	request.setOpt<Url>(url);
+	std::string url;
 	
-	request.perform();
+	while (titles.size() <= 1000) {
+	
+		url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=";
+		url += escapedQuery;
+		url += "&resultType=lite&cursorMark=";
+		url += cursorMark;
+		url += "&pageSize=1000&format=json";
+	
+		request.setOpt<Url>(url);
+		res = curl_easy_perform(request.getHandle());
+
+	   rapidjson::Document json;
+	   json.Parse(readBuffer.c_str());
+	
+		cursorMark = json["nextCursorMark"].GetString();
+		auto results = json["resultList"]["result"].GetArray();
+	
+		for (auto& r : results) {
+			titles.emplace_back(r["source"].GetString());
+			titles.back() += ":";
+			titles.back() += r["id"].GetString();
+			fetchedTitles++;
+		}
+		readBuffer = "";
+	}
+	
+	std::cout << "DONE" << std::endl;
 
 }
 

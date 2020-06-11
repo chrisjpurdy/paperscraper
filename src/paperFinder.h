@@ -11,6 +11,9 @@
 #include <curlpp/Easy.hpp>
 #include <curlpp/Options.hpp>
 
+#include "rapidjson/stream.h"
+#include "rapidjson/document.h"
+
 using namespace curlpp::options;
 
 /**
@@ -45,6 +48,8 @@ public:
 	PaperFinder(std::string _searchTerm, std::string commaSeparatedFilterTerms, std::string _cursorMark);
 	
 	~PaperFinder();
+	
+	static size_t responseCallback(void *contents, size_t size, size_t nmemb, void *userp);
 	
 	void join();
 	
