@@ -6,6 +6,8 @@
 #import <thread>
 #import <mutex>
 #import <iostream>
+#import <sstream>
+#import <fstream>
 
 #include <curlpp/cURLpp.hpp>
 #include <curlpp/Easy.hpp>
@@ -27,6 +29,7 @@ public:
 	std::string text;
 	
 	friend std::ostream& operator<<(std::ostream& os, const PubTatorAnnot& pta);
+	friend std::string to_string(const PubTatorAnnot& pta);
 };
 
 class PubTatorQuery {
