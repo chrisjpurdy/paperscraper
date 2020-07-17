@@ -1,0 +1,21 @@
+ML Model concept
+----------------
+
+Build a probablistic language model *taking into account words which are labelled as useful*.
+
+Use an n-gram language model, storing the probabilities of each word given a previous one in a sparse matrix
+	- The word probability matrix may be heavily diagonal, so DIA method of sparse matrix storage might be good. BSR also seems like a good alternative to prevent storage of 	large amounts of zeros
+	- Remember to store the log of the probability values (see [4] page 6), since multiplying many small number together could cause numerical underflow
+	
+Use a separate matrix to store the ranking of each word (just include words with a non-zero ranking, non-existence in the list implies zero ranking)
+	- As before negative ranking for bad word, positive for good word
+	- Should store the words in alphabetical order and find using binary search (or use a trie, see [1])
+	
+Can rate a new annotation peripheral by working out its *probability* from the matrix, weighted on the rankings
+
+Possible papers & related content
+---------------------------------
+[1] https://www.researchgate.net/publication/231771369_A_fast_and_flexible_architecture_for_very_large_word_n-gram_datasets
+[2] https://www.researchgate.net/publication/224688960_Review_of_Storage_Techniques_for_Sparse_Matrices
+[3] https://medium.com/@jmaxg3/101-ways-to-store-a-sparse-matrix-c7f2bf15a229
+[4] https://web.stanford.edu/~jurafsky/slp3/3.pdf - lecture notes on n-gram language models
