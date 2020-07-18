@@ -1,10 +1,12 @@
 ML Model concept
 ----------------
 
+PURE CPP N-GRAM IDEA
+--------------------
 Build a probablistic language model *taking into account words which are labelled as useful*.
 
 Use an n-gram language model, storing the probabilities of each word given a previous one in a sparse matrix
-	- The word probability matrix may be heavily diagonal, so DIA method of sparse matrix storage might be good. BSR also seems like a good alternative to prevent storage of 	large amounts of zeros
+	- The word probability matrix may be heavily diagonal, so DIA method of sparse matrix storage might be good. BSR also seems like a good alternative to prevent storage of large amounts of zeros
 	- Remember to store the log of the probability values (see [4] page 6), since multiplying many small number together could cause numerical underflow
 	
 Use a separate matrix to store the ranking of each word (just include words with a non-zero ranking, non-existence in the list implies zero ranking)
@@ -12,6 +14,39 @@ Use a separate matrix to store the ranking of each word (just include words with
 	- Should store the words in alphabetical order and find using binary search (or use a trie, see [1])
 	
 Can rate a new annotation peripheral by working out its *probability* from the matrix, weighted on the rankings
+
+DO THIS FIRST THEN LATER MAKE UPGRADED MODEL (BELOW) IF NEEDED
+
+Model files layout
+------------------
+word_list.model - alphabetically ordered list of words, with the number of times the word has been seen listed next to it, and its index in the matrix (i.e. apple:45:3,balloon:3:1,hand:53:2,spoon:2:0,{word:amount:index}...)
+
+       |spoon|balloon|hand|apple|
+---------------------------------
+spoon  |     |       |    |     |
+balloon|     |       |    |     | - each value in the matrix stores the probability of the word in the column given the word in the row P(x|y)
+hand   |     |       |    |     |
+apple  |     |       |    |     |
+
+matrix.model - stores the above matrix in a sparse matrix storage format [3]
+
+
+GOOGLE BERT TENSORFLOW IDEA
+---------------------------
+Look at google BERT - going to have to be done in python probably if wanting to use Tensorflow (since the C++ API isn't great)
+
+https://www.tensorflow.org/official_models/fine_tuning_bert
+https://www.tensorflow.org/tutorials/customization/custom_training_walkthrough
+
+pip install tensorflow
+pip install tranformers (https://github.com/huggingface/transformers)
+
+First 
+	- Classification based on likelihood of sentence as given by model trained on previous annotations using google BERT
+	- Classification is given as a score, given by how many words were useful out of the periphery minus the number of words that weren't useful in the periphery
+	- Sort new sentences by their classification given by trained model
+Second 
+	- Further sort the sentences within the classifications by occurences of known keywords, stored in a list, with the percentage of the time each word was useful
 
 Possible papers & related content
 ---------------------------------
