@@ -4,7 +4,7 @@
 #import <vector>
 #import <string>
 #import <thread>
-#import <mutex>
+#import "portable_sem.h"
 #import <iostream>
 #import <sstream>
 #import <fstream>
@@ -37,18 +37,26 @@ private:
 	static int currentSearches;
 	
 public:
-	PubTatorQuery(std::string _searchTerm);
+	PubTatorQuery(std::string _searchTerm, std::string mode, rk_sema* sem);
 	~PubTatorQuery();
 	
 	void join();
 	
 	static size_t responseCallback(void *contents, size_t size, size_t nmemb, void *userp);
 	void runSearch();
+	void runDump();
+	
+	void progressBar(float val, float max);
 	
 	void extractAnnots(rapidjson::Document& json);
+	void extractPeriph(rapidjson::Document& json, std::ofstream& outFile);
+	
+	void outputCSVAnnots(std::string name);
 	
 	std::thread searchThread;
 	std::string searchTerm;
+	
+	rk_sema* sem;
 	
 	std::vector<std::string> pmidList;
 	

@@ -17,6 +17,10 @@ Can rate a new annotation peripheral by working out its *probability* from the m
 
 DO THIS FIRST THEN LATER MAKE UPGRADED MODEL (BELOW) IF NEEDED
 
+Using https://github.com/google/sentencepiece to tokenize the peripherals to create the necessary tokens for the below matrix
+	- Need to train the model using a script to collect peripheral data from Pubtator
+
+
 Model files layout
 ------------------
 word_list.model - alphabetically ordered list of words, with the number of times the word has been seen listed next to it, and its index in the matrix (i.e. apple:45:3,balloon:3:1,hand:53:2,spoon:2:0,{word:amount:index}...)
@@ -29,7 +33,6 @@ hand   |     |       |    |     |
 apple  |     |       |    |     |
 
 matrix.model - stores the above matrix in a sparse matrix storage format [3]
-
 
 GOOGLE BERT TENSORFLOW IDEA
 ---------------------------

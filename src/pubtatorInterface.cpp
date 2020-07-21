@@ -1,5 +1,8 @@
 #include "pubtatorInterface.h"
 
+#define DUMP_FILE_PATH "periphs.txt"
+#define MAX_PAGES_PER_TERM 100
+
 int PubTatorQuery::currentSearches = 0;
 
 /* PubTatorAnnot */
@@ -26,8 +29,16 @@ std::string to_string(const PubTatorAnnot& pta) {
 }
 /* ---------- */
 
-PubTatorQuery::PubTatorQuery(std::string _searchTerm) : finished(false), searchTerm(_searchTerm) {	
-	searchThread = std::thread(&PubTatorQuery::runSearch, this);
+PubTatorQuery::PubTatorQuery(std::string _searchTerm, std::string mode, rk_sema* _sem) : finished(false), sem(_sem), searchTerm(_searchTerm) {	
+	/* THIS NEEDS TO BE REPLACED WITH POLYMORPHISM FOR BETTER FURTURE PROOFING ETC. */
+	rk_sema_wait(sem);
+	if (mode == "search") {
+		searchThread = std::thread(&PubTatorQuery::runSearch, this);
+	} else if (mode == "dump") {
+		searchThread = std::thread(&PubTatorQuery::runDump, this);
+	} else {
+		return;
+	}
 	currentSearches++;
 }
 
@@ -45,6 +56,23 @@ void PubTatorQuery::join() {
 size_t PubTatorQuery::responseCallback(void *contents, size_t size, size_t nmemb, void *userp) {
 	((std::string*)userp)->append((char*)contents, size * nmemb);
 	return size * nmemb;
+}
+
+void PubTatorQuery::progressBar(float val, float max) {
+	if (max <= 0 || val < 0) {
+		return;
+	}
+	float percent = val / max;
+	int numOfBars = percent * 30.f;
+	std::cout << '|';
+	for (int i = 1; i<=30; i++) {
+		if (i <= numOfBars) {
+			std::cout << '=';
+		} else {
+			std::cout << ' ';
+		}
+	}
+	std::cout << "| (" << (int)(percent*100.0) << "%)    \r" << std::flush;
 }
 
 void PubTatorQuery::runSearch() {
@@ -70,7 +98,12 @@ void PubTatorQuery::runSearch() {
 	res = curl_easy_perform(request.getHandle());
 
    rapidjson::Document json;
-   json.Parse(readBuffer.c_str());
+   rapidjson::ParseResult parseOK = json.Parse(readBuffer.c_str());
+	if (!parseOK) {
+		// TODO need to try again to parse/to perform the request in the case of an error code of 1
+		std::cerr << "JSON parse error: " << parseOK.Code() << std::endl;
+		exit(1);
+	}
 	
 	//std::cout << readBuffer << std::endl;
 	
@@ -78,7 +111,7 @@ void PubTatorQuery::runSearch() {
 	readBuffer = "";
 	
 	// next request, number of passes given by the total pages listed in the first request
-	int numberOfPages = json["total_pages"].GetInt();
+	int numberOfPages = std::min(json["total_pages"].GetInt(), 200);
 	for (int page = 2; page <= numberOfPages; page++) {
 		
 		curlpp::Cleanup myCleanup;
@@ -97,13 +130,84 @@ void PubTatorQuery::runSearch() {
 		extractAnnots(json);
 		readBuffer = "";
 	}
-
+	outputCSVAnnots(escapedSearchTerm);
 	finished = true;
+	rk_sema_post(sem);
+}
+
+void PubTatorQuery::runDump() {
+	curlpp::Cleanup myCleanup;
+	cURLpp::Easy request;
+	CURLcode res;
+	std::string readBuffer;
 	
-	std::ofstream output(std::string(escapedSearchTerm)+".csv", std::ofstream::out);
+	/* set up url with query */
+	std::replace(searchTerm.begin(), searchTerm.end(), ' ', '+');
+	std::string escapedSearchTerm = curl_easy_escape(request.getHandle(), searchTerm.c_str(), 0);
+	
+	curl_easy_setopt(request.getHandle(), CURLOPT_WRITEFUNCTION, PubTatorQuery::responseCallback);
+	curl_easy_setopt(request.getHandle(), CURLOPT_WRITEDATA, &readBuffer);
+	
+	// first pass
+	std::string url;
+	url = "https://www.ncbi.nlm.nih.gov/research/pubtator-api/publications/search?format=json&page=1&q=";
+	url += escapedSearchTerm;
+	url += "&filters=full.true";
+	
+	request.setOpt<Url>(url);
+	res = curl_easy_perform(request.getHandle());
+	if (res != 0) {
+		std::cerr << "CURL request error: " << res << std::endl;
+	}
+	
+   rapidjson::Document json;
+   rapidjson::ParseResult parseOK = json.Parse(readBuffer.c_str());
+	if (!parseOK) {
+		// TODO need to try again to parse/to perform the request in the case of an error code of 1
+		std::cerr << "JSON parse error: " << parseOK.Code() << std::endl;
+		exit(1);
+	}
+	
+	// setup out file
+	std::ofstream outFile;
+	outFile.open(DUMP_FILE_PATH, std::ios::out | std::ios::app | std::ios::ate);
+	
+	extractPeriph(json, outFile);
+	readBuffer = "";
+	
+	// next request, number of passes given by the total pages listed in the first request
+	// takes maximum 200 pages
+	int numberOfPages = std::min(json["total_pages"].GetInt(), MAX_PAGES_PER_TERM);
+	progressBar(1, numberOfPages);
+	for (int page = 2; page <= numberOfPages; page++) {
+		
+		curlpp::Cleanup myCleanup;
+		
+		url = "https://www.ncbi.nlm.nih.gov/research/pubtator-api/publications/search?format=json&page=";
+		url += std::to_string(page);
+		url += "&q=";
+		url += escapedSearchTerm;
+		url += "&filters=full.true";
+		
+		request.setOpt<Url>(url);
+		res = curl_easy_perform(request.getHandle());
+		
+	   json.Parse(readBuffer.c_str());
+		
+		extractPeriph(json, outFile);
+		progressBar(page, numberOfPages);
+		readBuffer = "";
+	}
+	std::cout << std::endl;
+	outFile.close();
+	finished = true;
+	rk_sema_post(sem);
+}
+
+void PubTatorQuery::outputCSVAnnots(std::string name) {
+	std::ofstream output(name + ".csv", std::ofstream::out);
 	output << "PMID,Peripheral text,Type,Identifier,Matched Text,Exact Correct,Periph Include,Periph Exclude,Periph Useful" << std::endl;
-	for (auto& annot : annotList) output << *annot << std::endl;
-	
+	for (const auto& annot : annotList) output << *annot << std::endl;
 }
 
 void PubTatorQuery::extractAnnots(rapidjson::Document& json) {
@@ -115,7 +219,7 @@ void PubTatorQuery::extractAnnots(rapidjson::Document& json) {
 		return;
 	}
 	
-	std::cout << "Parsing page " << json["current"].GetInt() << " out of " << json["total_pages"].GetInt() << std::endl;
+	//std::cout << "Parsing page " << json["current"].GetInt() << " out of " << json["total_pages"].GetInt() << std::endl;
 	
 	for (auto& article : json["results"].GetArray()) {
 		if (article.HasMember("id")) {
@@ -138,15 +242,11 @@ void PubTatorQuery::extractAnnots(rapidjson::Document& json) {
 				// go through each annotation
 				for (auto& annot : passage["annotations"].GetArray()) {
 					// store relevant info in a new PubTatorAnnot object and append to the vector
-					// char writeBuffer[65536];
-	// 				rapidjson::FileWriteStream os(stdout, writeBuffer, sizeof(writeBuffer));
-	// 				rapidjson::Writer<rapidjson::FileWriteStream> writer(os);
-	// 				annot.Accept(writer);
 					/* checking to make sure all the required values are in this json object */
 					if (annot.HasMember("infons") && annot.HasMember("text")) {
 						if (annot["infons"].HasMember("type") && annot["infons"].HasMember("identifier")) {
 							if (!(annot["infons"]["type"].IsNull() || annot["infons"]["identifier"].IsNull() || annot["text"].IsNull())) {
-								// makes user we are looking for genes
+								// makes sure we are looking for gene related annotations
 								if (annot["infons"]["type"] == "Gene") {
 									ptrPTAnnot = new PubTatorAnnot();
 									ptrPTAnnot->pmid = pmid;
@@ -161,6 +261,50 @@ void PubTatorQuery::extractAnnots(rapidjson::Document& json) {
 					}
 					/* ------------------------------ */
 				}
+			}
+		}
+	}
+}
+
+void PubTatorQuery::extractPeriph(rapidjson::Document& json, std::ofstream& outFile) {
+	std::string pmid;
+	std::string passageText;
+	// go through each returned paper
+
+	if (!json.HasMember("results")) {
+		return;
+	}
+	/*
+	rapidjson::StringBuffer buffer;
+ 	rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+ 	json.Accept(writer);
+ 	std::cout << buffer.GetString() << std::endl;
+	*/
+	//std::assert(json.IsObject());
+	
+	//std::cout << "Parsing page " << json["current"].GetInt() << " out of " << json["total_pages"].GetInt() << std::endl;
+	
+	for (auto& article : json["results"].GetArray()) {
+		if (article.HasMember("id")) {
+			if (article["id"].IsString()) {
+				pmid = article["id"].GetString();
+			} else if (article["id"].IsInt()) {
+				pmid = std::to_string(article["id"].GetInt());
+			}
+		} else if (article.HasMember("pmid")) {
+			pmid = std::to_string(article["pmid"].GetInt());
+		} else {
+			// doesn't have a pmid, so pass
+			continue;
+		}
+		// go through each passage
+		for (auto& passage : article["passages"].GetArray()) {
+			if (!passage["text"].IsNull()) {
+				if (passage["text"].IsString()) {
+					passageText = passage["text"].GetString();
+					// append to end of output txt file
+					outFile << passageText << "\n";
+				}		
 			}
 		}
 	}
