@@ -3,9 +3,13 @@
 
 #include <map>
 #include <vector>
+#include <iostream>
 #include <string>
+#include <fstream>
 
-struct TokenInfo {
+class TokenInfo {
+public:
+	TokenInfo(int i, int c) : index(i), count(c) {};
 	int index;
 	int count;
 };
@@ -16,11 +20,14 @@ struct TokenInfo {
  */
 class TokenList {
 public:
-	std::map<std::string,TokenInfo> tokenToInfo;
+	TokenList(std::string vocabFile);
+	TokenList();
+	
+	std::map<std::string, TokenInfo> tokenToInfo;
 	int indexCounter;
 	
 	void updateTokenList(std::vector<std::string>& tokens);
-	int getTokenIndex(std::string& token);
+	TokenInfo* getTokenInfo(std::string& token);
 };
 
 #endif

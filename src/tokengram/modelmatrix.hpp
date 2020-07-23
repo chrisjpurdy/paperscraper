@@ -5,12 +5,13 @@
 
 class BiGramMatrixModel {
 public:
-	std::vector<std::vector> matrix;
+	std::vector<std::vector<float>> matrix;
+	std::shared_ptr<TokenList> tokenList;
 	
-	BiGramMatrixModel();
+	BiGramMatrixModel(std::shared_ptr<TokenList> _tokenList);
 	~BiGramMatrixModel();
 	
-	void updateWithTokens(std::vector<std::string>& tokens);
+	void updateWithSentenceTokens(std::vector<std::string>& tokens);
 	float getProbability(std::string prevToken, std::string token);
 };
 

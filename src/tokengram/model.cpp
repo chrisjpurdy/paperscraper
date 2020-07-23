@@ -9,29 +9,39 @@
 #include <iostream>
 #include <vector>
 #include <fstream>
-#include <sentencepiece_processor.h>
+#include <regex>
 
-// int loadModel(std::string& filename) {
-// 	std::ifstream myfile;
-// }
+#include "tokenlist.hpp"
+//#include "modelmatrix.hpp"
 
-sentencepiece::SentencePieceProcessor processor;
+TokenList tokenList;
+//BiGramMatrixModel biGramModel;
+
+void trainModels(std::vector<std::string>& tokens) {
+	tokenList.updateTokenList(tokens);
+}
 
 void tokenizeSentence(std::string& sentence, std::vector<std::string>& tokens) {
-	processor.Encode(sentence, &tokens);
-	for (const std::string &token : tokens) {
-	  std::cout << token << std::endl;
+	std::regex punc("[[:punct:]]", std::regex::extended);
+	std::string str = std::regex_replace(sentence, punc, " ");
+	
+	size_t pos = 0;
+	std::string token;
+	while ((pos = str.find(' ')) != std::string::npos) {
+		token = str.substr(0, pos);
+		if (token.length() > 0) {
+	   	tokens.push_back(token);
+		}
+	   str.erase(0, pos + 1);
+	}
+	if (str.length() > 0) {
+   	tokens.push_back(str);
 	}
 }
 
 int main() {
 	
-	// load model from file
-	const auto status = processor.Load("tator.model");
-	if (!status.ok()) {
-	   std::cerr << status.ToString() << std::endl;
-	   // error
-	}
+	//std::locale::global(std::locale("en_US.utf8"));
 	
 	std::string command;
 	std::string periph;
@@ -51,8 +61,20 @@ int main() {
 		tokenizeSentence(periph, tokens);
 		
 		// if command is train/train_score, update model
+		if (command == "train" || command == "train_score") {
+			// tokens shouldn't be modified
+			trainModels(tokens);
+		}
 		
 		// if command is score/train_score score the sentence and output to cout
+		if (command == "score" || command == "train_score") {
+			// scoreSentence(tokens);
+			for (auto& t : tokens) {
+				auto tokenInfoPtr = tokenList.getTokenInfo(t);
+				std::cout << t << ":\t" << tokenInfoPtr->index << ", " << tokenInfoPtr->count << std::endl;
+			}
+		}
+		
 	} while (command != "close");
 	
 	return 0;
