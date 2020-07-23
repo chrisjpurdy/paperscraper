@@ -2,7 +2,7 @@
 
 /* ./comp.bat pubtatorInterface.cpp - compiles this with the pubtator interface class, use ./a.out to run */
 
-/* To train the model with the scraped data use the below as reference
+/* To train the model with the scraped data use the below as reference - NOT USING ANYMORE, was to be used with sentencepiece
  * spm_train --input=periphs.txt --model_prefix=tator --vocab_size=8000 --character_coverage=1.0 --model_type=unigram
  */
 void scrapeKeywords() {
